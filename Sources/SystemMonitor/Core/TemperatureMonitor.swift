@@ -3,10 +3,10 @@ import IOKit
 
 // MARK: - Temperature Monitor for Apple Silicon
 // Uses IOHIDEventSystem (Private API) to read temperature sensors
-class TemperatureMonitor: ObservableObject {
+class TemperatureMonitor: ObservableObject, @unchecked Sendable {
     @Published var cpuTemperature: Double = 0
     
-    private var timer: Timer?
+    private var timer: DispatchSourceTimer?
     
     init() {
         updateTemperature()
@@ -18,20 +18,28 @@ class TemperatureMonitor: ObservableObject {
     }
     
     func startMonitoring() {
-        timer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+        guard timer == nil else { return }
+        
+        let settings = PowerSavingManager.shared
+        let interval = settings.temperatureUpdateInterval
+        
+        timer = settings.createTimer(interval: interval) { [weak self] in
             self?.updateTemperature()
         }
+        timer?.resume()
     }
     
     func stopMonitoring() {
-        timer?.invalidate()
+        timer?.cancel()
         timer = nil
     }
     
     private func updateTemperature() {
         // Try to get temperature from IOHIDEventSystemClient
         if let temp = getAppleSiliconTemperature() {
-            self.cpuTemperature = temp
+            DispatchQueue.main.async {
+                self.cpuTemperature = temp
+            }
         }
     }
     

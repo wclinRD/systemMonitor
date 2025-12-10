@@ -12,15 +12,14 @@ struct SpeedFormatter {
         let isLowercase = unitStyle.contains("lowercase")
         let hasSuffix = unitStyle.contains("suffix") || unitStyle == "suffix"
         
-        if bytes < 1024 {
-            value = Double(bytes)
-            unit = isLowercase ? " b" : " B"
-            if hasSuffix { unit += "/s" }
-        } else if bytes < 1024 * 1024 {
+        // User requesting ONLY KB and MB
+        if bytes < 1024 * 1024 {
+            // < 1 MB -> Display as KB
             value = Double(bytes) / 1024.0
             unit = isLowercase ? "kb" : "KB"
             if hasSuffix { unit += "/s" }
         } else {
+            // >= 1 MB -> Display as MB
             value = Double(bytes) / 1024.0 / 1024.0
             unit = isLowercase ? "mb" : "MB"
             if hasSuffix { unit += "/s" }

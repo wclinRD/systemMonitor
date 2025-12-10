@@ -99,40 +99,106 @@ struct SettingsView: View {
 struct GeneralSettingsView: View {
     @StateObject private var autoLaunchManager = AutoLaunchManager()
     @ObservedObject private var localization = LocalizationManager.shared
+    @ObservedObject private var powerSaving = PowerSavingManager.shared
     @AppStorage("appLanguage") private var appLanguage = "auto"
 
     var body: some View {
-        VStack(spacing: 16) {
-            // Launch at Login Group
-            SettingsGroup {
-                Toggle("Launch at Login".localized, isOn: Binding(
-                    get: { autoLaunchManager.isEnabled },
-                    set: { isEnabled in
-                        autoLaunchManager.toggle(isEnabled)
-                    }
-                ))
+        ScrollView {
+            VStack(spacing: 16) {
+                // Launch at Login Group
+                SettingsGroup {
+                    Toggle("Launch at Login".localized, isOn: Binding(
+                        get: { autoLaunchManager.isEnabled },
+                        set: { isEnabled in
+                            autoLaunchManager.toggle(isEnabled)
+                        }
+                    ))
+                    
+                    Divider().padding(.vertical, 8)
+                    
+                    Text("This will start SystemMonitor automatically when you log in.".localized)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 
-                Divider().padding(.vertical, 8)
-                
-                Text("This will start SystemMonitor automatically when you log in.".localized)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            
-            // Language Group
-            SettingsGroup {
-                HStack {
-                    Text("Language".localized)
-                    Spacer()
-                    Picker("", selection: $appLanguage) {
-                        Text("Automatic".localized).tag("auto")
-                        Text("繁體中文").tag("zh-Hant")
-                        Text("English").tag("en")
+                // Language Group
+                SettingsGroup {
+                    HStack {
+                        Text("Language".localized)
+                        Spacer()
+                        Picker("", selection: $appLanguage) {
+                            Text("Automatic".localized).tag("auto")
+                            Text("繁體中文").tag("zh-Hant")
+                            Text("English").tag("en")
+                        }
+                        .labelsHidden()
+                        .fixedSize()
                     }
-                    .labelsHidden()
-                    .fixedSize()
+                }
+                
+                // Power Saving Group
+                SettingsGroup {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Power Saving".localized)
+                            .font(.headline)
+                        
+                        Divider()
+                        
+                        // Timer Intervals
+                        VStack(spacing: 8) {
+                            IntervalSlider(
+                                title: "Network Update".localized,
+                                value: $powerSaving.networkUpdateInterval,
+                                range: 1.0...10.0
+                            )
+                            
+                            IntervalSlider(
+                                title: "System Info Update".localized,
+                                value: $powerSaving.systemInfoUpdateInterval,
+                                range: 1.0...10.0
+                            )
+                            
+                            IntervalSlider(
+                                title: "Temperature Update".localized,
+                                value: $powerSaving.temperatureUpdateInterval,
+                                range: 2.0...30.0
+                            )
+                        }
+                        
+                        Divider()
+                        
+                        // Toggles
+                        Toggle("Pause When Panel Closed".localized, isOn: $powerSaving.pauseWhenPanelClosed)
+                        Text("Stops non-essential monitoring when panel is hidden.".localized)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Toggle("Use Efficient Timers".localized, isOn: $powerSaving.useEfficientTimers)
+                        Text("Allows system to coalesce timers for better battery life.".localized)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
+        }
+    }
+}
+
+// MARK: - Interval Slider Helper
+struct IntervalSlider: View {
+    let title: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Slider(value: $value, in: range, step: 0.5)
+                .frame(width: 120)
+            Text("\(value, specifier: "%.1f")s")
+                .frame(width: 40)
+                .foregroundStyle(.secondary)
         }
     }
 }
@@ -308,6 +374,14 @@ struct PanelSettingsView: View {
                         set: { downloadColorHex = $0.toHex() }
                     ))
                 }
+                
+                Divider().padding(.vertical, 8)
+                
+                // Show Top Processes
+                Toggle("Show Top Processes".localized, isOn: Binding(
+                    get: { UserDefaults.standard.object(forKey: "showTopProcesses") as? Bool ?? true },
+                    set: { UserDefaults.standard.set($0, forKey: "showTopProcesses") }
+                ))
             }
         }
     }

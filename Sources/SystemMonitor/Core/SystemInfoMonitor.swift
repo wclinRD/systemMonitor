@@ -2,14 +2,14 @@ import Foundation
 import Combine
 import Darwin
 
-class SystemInfoMonitor: ObservableObject {
+class SystemInfoMonitor: ObservableObject, @unchecked Sendable {
     @Published var cpuUsage: Double = 0
     @Published var memoryUsed: Int64 = 0
     @Published var memoryTotal: Int64 = 0
     @Published var diskUsed: Int64 = 0
     @Published var diskTotal: Int64 = 0
     
-    private var timer: Timer?
+    private var timer: DispatchSourceTimer?
     private var lastCPULoadInfo: host_cpu_load_info?
     
     init() {
@@ -24,23 +24,33 @@ class SystemInfoMonitor: ObservableObject {
     }
     
     func startMonitoring() {
-        timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        guard timer == nil else { return }
+        
+        let settings = PowerSavingManager.shared
+        let interval = settings.systemInfoUpdateInterval
+        
+        timer = settings.createTimer(interval: interval) { [weak self] in
             self?.updateInfo()
         }
+        timer?.resume()
     }
     
     func stopMonitoring() {
-        timer?.invalidate()
+        timer?.cancel()
         timer = nil
     }
     
     private func updateInfo() {
-        self.cpuUsage = getCPUUsage()
-        self.memoryUsed = getMemoryUsage()
-        
+        let cpu = getCPUUsage()
+        let memory = getMemoryUsage()
         let (dUsed, dTotal) = getDiskUsage()
-        self.diskUsed = dUsed
-        self.diskTotal = dTotal
+        
+        DispatchQueue.main.async {
+            self.cpuUsage = cpu
+            self.memoryUsed = memory
+            self.diskUsed = dUsed
+            self.diskTotal = dTotal
+        }
     }
     
     // MARK: - CPU

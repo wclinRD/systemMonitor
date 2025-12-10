@@ -14,7 +14,7 @@ class NetworkMonitor: ObservableObject, @unchecked Sendable {
     private var lastBytesIn: Int64 = 0
     private var lastBytesOut: Int64 = 0
     private var lastCheckTime: TimeInterval = 0
-    private var timer: Timer?
+    private var timer: DispatchSourceTimer?
     
     init() {
         startMonitoring()
@@ -25,17 +25,23 @@ class NetworkMonitor: ObservableObject, @unchecked Sendable {
     }
     
     func startMonitoring() {
+        guard timer == nil else { return }
+        
         // Initialize baseline
         (lastBytesIn, lastBytesOut) = getGlobalBytes()
         lastCheckTime = Date().timeIntervalSince1970
         
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        let settings = PowerSavingManager.shared
+        let interval = settings.networkUpdateInterval
+        
+        timer = settings.createTimer(interval: interval) { [weak self] in
             self?.updateSpeed()
         }
+        timer?.resume()
     }
     
     func stopMonitoring() {
-        timer?.invalidate()
+        timer?.cancel()
         timer = nil
     }
     

@@ -24,8 +24,39 @@ class ProcessMonitor: ObservableObject, @unchecked Sendable {
     // Temporary storage for current snapshot
     private var currentSnapshot: [ProcessUsage] = []
     
+    private var cancellables = Set<AnyCancellable>()
+    
     init() {
-        startMonitoring()
+        // Observe interval changes
+        PowerSavingManager.shared.$networkUpdateInterval
+            .dropFirst() // establishing initial subscription shouldn't trigger
+            .debounce(for: .seconds(0.5), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                // Only restart if currently running
+                if self.process != nil {
+                    self.startMonitoring()
+                }
+            }
+            .store(in: &cancellables)
+            
+        // Observe showTopProcesses changes
+        UserDefaults.standard.publisher(for: \.showTopProcesses)
+            .sink { [weak self] show in
+                if show {
+                    // removing this auto-start or logic might be complex if panel is closed
+                    // relying on AppDelegate to call startMonitoring is better, 
+                    // BUT if we are "running" (panel open) and user toggles this ON, we should start.
+                    // However, we don't know if panel is open here easily without more coupling.
+                    // For now: if turned OFF, stop. If ON, let AppDelegate/Panel logic handle start.
+                    if !show {
+                        self?.stopMonitoring()
+                    }
+                } else {
+                    self?.stopMonitoring()
+                }
+            }
+            .store(in: &cancellables)
     }
     
     deinit {
@@ -33,33 +64,53 @@ class ProcessMonitor: ObservableObject, @unchecked Sendable {
     }
     
     func startMonitoring() {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
-        // -P: Per process
-        // -L 0: Infinite logging
-        // -J: columns
-        process.arguments = ["-P", "-L", "0", "-J", "bytes_in,bytes_out"]
+        // Prevent multiple processes
+        stopMonitoring()
         
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        self.pipe = pipe
-        self.process = process
+        // specific check: if user disabled top processes, do nothing
+        guard UserDefaults.standard.bool(forKey: "showTopProcesses") else { return }
         
-        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            if let string = String(data: data, encoding: .utf8) {
-                self?.parseOutput(string)
+        let interval = PowerSavingManager.shared.networkUpdateInterval
+        let intervalString = String(format: "%.0f", max(1.0, interval))
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
+            // -P: Per process
+            // -L 0: Infinite logging
+            // -J: columns
+            // -s: update interval (seconds)
+            process.arguments = ["-P", "-L", "0", "-J", "bytes_in,bytes_out", "-s", intervalString]
+            
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            
+            // Set reader on background queue to avoid main thread parsing
+            pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+                let data = handle.availableData
+                if let string = String(data: data, encoding: .utf8) {
+                    self?.parseOutput(string)
+                }
             }
-        }
-        
-        do {
-            try process.run()
-        } catch {
-            print("Failed to start nettop: \(error)")
+            
+            do {
+                try process.run()
+                
+                // Update state on main actor if needed, but here we just store it
+                // We use a lock or just insure we set it safely. 
+                // Since this class is @unchecked Sendable but logic is simple:
+                DispatchQueue.main.async {
+                    self?.pipe = pipe
+                    self?.process = process
+                }
+            } catch {
+                print("Failed to start nettop: \(error)")
+            }
         }
     }
     
     func stopMonitoring() {
+        pipe?.fileHandleForReading.readabilityHandler = nil
         process?.terminate()
         process = nil
         pipe = nil
@@ -126,5 +177,11 @@ class ProcessMonitor: ObservableObject, @unchecked Sendable {
         }
         
         currentSnapshot.removeAll()
+    }
+}
+
+extension UserDefaults {
+    @objc dynamic var showTopProcesses: Bool {
+        return bool(forKey: "showTopProcesses")
     }
 }

@@ -1,0 +1,115 @@
+Building for production...
+[0/2] Write swift-version--58304C5D6DBC2206.txt
+[2/3] Compiling SystemMonitor AppDelegate.swift
+/Users/wclin/antigravity/systemmonitor/Sources/SystemMonitor/AppDelegate.swift:105:9: error: call to main actor-isolated instance method 'openSettings()' in a synchronous nonisolated context [#ActorIsolatedCall]
+102 |     }
+103 |     
+104 |     @objc func handleOpenSettings() {
+    |                `- note: add '@MainActor' to make instance method 'handleOpenSettings()' part of global actor 'MainActor'
+105 |         openSettings()
+    |         `- error: call to main actor-isolated instance method 'openSettings()' in a synchronous nonisolated context [#ActorIsolatedCall]
+106 |     }
+107 |     
+    :
+243 |     
+244 |     @MainActor
+245 |     func openSettings() {
+    |          `- note: calls to instance method 'openSettings()' from outside of its actor context are implicitly asynchronous
+246 |         // Close panel first
+247 |         closePanel()
+
+/Users/wclin/antigravity/systemmonitor/Sources/SystemMonitor/AppDelegate.swift:156:13: warning: variable 'fullText' was never mutated; consider changing to 'let' constant
+154 |         let font = NSFont.monospacedSystemFont(ofSize: 9, weight: .regular)
+155 |         
+156 |         var fullText = lines.isEmpty ? "Monitor" : lines.joined(separator: "\n")
+    |             `- warning: variable 'fullText' was never mutated; consider changing to 'let' constant
+157 |         
+158 |         let attributedString = NSMutableAttributedString(string: fullText, attributes: [
+
+/Users/wclin/antigravity/systemmonitor/Sources/SystemMonitor/AppDelegate.swift:164:16: warning: main actor-isolated property 'attributedTitle' can not be mutated from a nonisolated context
+106 |     }
+107 |     
+108 |     func updateButtonTitle() {
+    |          `- note: add '@MainActor' to make instance method 'updateButtonTitle()' part of global actor 'MainActor'
+109 |         guard let button = statusItem.button else { return }
+110 |         
+    :
+162 |         ])
+163 |         
+164 |         button.attributedTitle = attributedString
+    |                `- warning: main actor-isolated property 'attributedTitle' can not be mutated from a nonisolated context
+165 |         
+166 |         // Resize button to fit content tightly
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk/System/Library/Frameworks/AppKit.framework/Headers/NSButton.h:79:38: note: mutation of this property is only permitted within the actor
+ 77 | 
+ 78 | /*! The button's title, expressed as an attributed string. */
+ 79 | @property (copy) NSAttributedString *attributedTitle;
+    |                                      `- note: mutation of this property is only permitted within the actor
+ 80 | 
+ 81 | /*! The title that the button displays when the button is in an on state, or an empty string if there is no such title. Note that some button types do not display an alternate title. */
+
+/Users/wclin/antigravity/systemmonitor/Sources/SystemMonitor/AppDelegate.swift:167:16: warning: call to main actor-isolated instance method 'sizeToFit()' in a synchronous nonisolated context [#ActorIsolatedCall]
+106 |     }
+107 |     
+108 |     func updateButtonTitle() {
+    |          `- note: add '@MainActor' to make instance method 'updateButtonTitle()' part of global actor 'MainActor'
+109 |         guard let button = statusItem.button else { return }
+110 |         
+    :
+165 |         
+166 |         // Resize button to fit content tightly
+167 |         button.sizeToFit()
+    |                `- warning: call to main actor-isolated instance method 'sizeToFit()' in a synchronous nonisolated context [#ActorIsolatedCall]
+168 |     }
+169 |     
+
+AppKit.NSControl.sizeToFit:2:22: note: calls to instance method 'sizeToFit()' from outside of its actor context are implicitly asynchronous
+1 | class NSControl {
+2 | @MainActor open func sizeToFit()}
+  |                      |- note: calls to instance method 'sizeToFit()' from outside of its actor context are implicitly asynchronous
+  |                      `- note: main actor isolation inferred from inheritance from class 'NSView'
+3 | 
+
+/Users/wclin/antigravity/systemmonitor/Sources/SystemMonitor/AppDelegate.swift:206:22: warning: call to main actor-isolated instance method 'orderOut' in a synchronous nonisolated context [#ActorIsolatedCall]
+203 |     }
+204 |     
+205 |     func closePanel() {
+    |          `- note: add '@MainActor' to make instance method 'closePanel()' part of global actor 'MainActor'
+206 |         panelWindow?.orderOut(nil)
+    |                      `- warning: call to main actor-isolated instance method 'orderOut' in a synchronous nonisolated context [#ActorIsolatedCall]
+207 |         stopEventMonitor()
+208 |         
+
+AppKit.NSWindow.orderOut:2:22: note: calls to instance method 'orderOut' from outside of its actor context are implicitly asynchronous
+1 | class NSWindow {
+2 | @MainActor open func orderOut(_ sender: Any?)}
+  |                      |- note: calls to instance method 'orderOut' from outside of its actor context are implicitly asynchronous
+  |                      `- note: main actor isolation inferred from inheritance from class 'NSResponder'
+3 | 
+
+/Users/wclin/antigravity/systemmonitor/Sources/SystemMonitor/AppDelegate.swift:231:53: warning: main actor-isolated property 'isVisible' can not be referenced from a nonisolated context
+229 |         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+230 |             // If click is outside the panel, close it
+231 |             if let panel = self?.panelWindow, panel.isVisible {
+    |                                                     `- warning: main actor-isolated property 'isVisible' can not be referenced from a nonisolated context
+232 |                 self?.closePanel()
+233 |             }
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk/System/Library/Frameworks/AppKit.framework/Headers/NSWindow.h:435:45: note: property declared here
+ 433 | 
+ 434 | @property (getter=isDocumentEdited) BOOL documentEdited;
+ 435 | @property (getter=isVisible, readonly) BOOL visible;
+     |                                             `- note: property declared here
+ 436 | @property (getter=isKeyWindow, readonly) BOOL keyWindow;
+ 437 | @property (getter=isMainWindow, readonly) BOOL mainWindow;
+
+/Users/wclin/antigravity/systemmonitor/Sources/SystemMonitor/Core/SystemInfoMonitor.swift:119:13: warning: initialization of immutable value 'active' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+117 |         let wired = Int64(info.wire_count) * pageSize
+118 |         let compressed = Int64(info.compressor_page_count) * pageSize
+119 |         let active = Int64(info.active_count) * pageSize
+    |             `- warning: initialization of immutable value 'active' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+120 |         
+121 |         // App Memory ≈ internal_page_count (system internal) + active external handling
+
+[#ActorIsolatedCall]: <https://docs.swift.org/compiler/documentation/diagnostics/actor-isolated-call>

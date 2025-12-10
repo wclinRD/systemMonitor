@@ -82,24 +82,34 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             name: Notification.Name("openSettings"),
             object: nil
         )
+        
+        // If power saving is disabled (always run), start process monitor now
+        if !PowerSavingManager.shared.pauseWhenPanelClosed {
+            processMonitor.startMonitoring()
+        }
     }
     
+    @MainActor
     @objc func handleDefaultsChange() {
         updateButtonTitle()
     }
 
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
         if object as? UserDefaults === UserDefaults.standard {
-            handleDefaultsChange()
+            DispatchQueue.main.async { [weak self] in
+                self?.handleDefaultsChange()
+            }
         } else {
             super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
         }
     }
     
+    @MainActor
     @objc func handleOpenSettings() {
         openSettings()
     }
     
+    @MainActor
     func updateButtonTitle() {
         guard let button = statusItem.button else { return }
         
@@ -166,6 +176,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return SpeedFormatter.format(bytes)
     }
     
+    @MainActor
     @objc func togglePopover() {
         guard let panel = panelWindow, let button = statusItem.button else { return }
         
@@ -188,14 +199,40 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             
             // Start monitoring for clicks outside
             startEventMonitor()
+            
+            // Resume paused monitors if power saving enabled
+            if PowerSavingManager.shared.pauseWhenPanelClosed {
+                resumeNonEssentialMonitors()
+            }
         }
     }
     
+    @MainActor
     func closePanel() {
         panelWindow?.orderOut(nil)
         stopEventMonitor()
+        
+        // Pause non-essential monitors if power saving enabled
+        if PowerSavingManager.shared.pauseWhenPanelClosed {
+            pauseNonEssentialMonitors()
+        }
     }
     
+    @MainActor
+    private func resumeNonEssentialMonitors() {
+        systemInfo.startMonitoring()
+        temperatureMonitor.startMonitoring()
+        processMonitor.startMonitoring()
+    }
+    
+    @MainActor
+    private func pauseNonEssentialMonitors() {
+        systemInfo.stopMonitoring()
+        temperatureMonitor.stopMonitoring()
+        processMonitor.stopMonitoring()
+    }
+    
+    @MainActor
     func startEventMonitor() {
         // Monitor both left and right mouse clicks
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
@@ -206,6 +243,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     
+    @MainActor
     func stopEventMonitor() {
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
@@ -213,6 +251,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     
+    @MainActor
     func openSettings() {
         // Close panel first
         closePanel()
@@ -247,3 +286,5 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsWindow = nil
     }
 }
+
+extension AppDelegate: @unchecked Sendable {}

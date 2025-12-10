@@ -15,6 +15,7 @@ struct MenuBarView: View {
     @AppStorage("appListStyle") private var appListStyle = "Icon + Name"
     @AppStorage("uploadColor") private var uploadColorHex = "#007AFF"
     @AppStorage("downloadColor") private var downloadColorHex = "#34C759"
+    @AppStorage("showTopProcesses") private var showTopProcesses = true
     
     var uploadColor: Color { Color(hex: uploadColorHex) }
     var downloadColor: Color { Color(hex: downloadColorHex) }
@@ -75,63 +76,75 @@ struct MenuBarView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             
-            Divider()
-                .padding(.vertical, 8)
-            
-            // Top 2 Uploading Apps
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Top Upload".localized)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 16)
+            if showTopProcesses {
+                Divider()
+                    .padding(.vertical, 8)
                 
-                let topUploading = processMonitor.processes
-                    .filter { $0.uploadSpeed > 0 }
-                    .sorted { $0.uploadSpeed > $1.uploadSpeed }
-                    .prefix(2)
-                
-                if topUploading.isEmpty {
-                    Text("—".localized)
+                // Top 2 Uploading Apps
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Top Upload".localized)
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 16)
-                } else {
-                    ForEach(Array(topUploading)) { process in
-                        ProcessRow(process: process, mode: .upload, color: .primary, listStyle: appListStyle, uploadColor: uploadColor, downloadColor: downloadColor)
+                    
+                    let topUploading = processMonitor.processes
+                        .filter { $0.uploadSpeed > 0 }
+                        .sorted { $0.uploadSpeed > $1.uploadSpeed }
+                        .prefix(2)
+                    
+                    if topUploading.isEmpty {
+                        Text("—".localized)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 16)
+                    } else {
+                        ForEach(Array(topUploading)) { process in
+                            ProcessRow(process: process, mode: .upload, color: .primary, listStyle: appListStyle, uploadColor: uploadColor, downloadColor: downloadColor)
+                        }
                     }
                 }
-            }
-            
-            Divider()
-                .padding(.vertical, 4)
-            
-            // Top 2 Downloading Apps
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Top Download".localized)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 16)
                 
-                let topDownloading = processMonitor.processes
-                    .filter { $0.downloadSpeed > 0 }
-                    .sorted { $0.downloadSpeed > $1.downloadSpeed }
-                    .prefix(2)
+                Divider()
+                    .padding(.vertical, 4)
                 
-                if topDownloading.isEmpty {
-                    Text("—".localized)
+                // Top 2 Downloading Apps
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Top Download".localized)
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 16)
-                } else {
-                    ForEach(Array(topDownloading)) { process in
-                        ProcessRow(process: process, mode: .download, color: .primary, listStyle: appListStyle, uploadColor: uploadColor, downloadColor: downloadColor)
+                    
+                    let topDownloading = processMonitor.processes
+                        .filter { $0.downloadSpeed > 0 }
+                        .sorted { $0.downloadSpeed > $1.downloadSpeed }
+                        .prefix(2)
+                    
+                    if topDownloading.isEmpty {
+                        Text("—".localized)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 16)
+                    } else {
+                        ForEach(Array(topDownloading)) { process in
+                            ProcessRow(process: process, mode: .download, color: .primary, listStyle: appListStyle, uploadColor: uploadColor, downloadColor: downloadColor)
+                        }
                     }
                 }
+                .padding(.bottom, 8)
             }
-            .padding(.bottom, 8)
             
             // Footer
             HStack {
+                Button(action: {
+                    showTopProcesses.toggle()
+                }) {
+                    Image(systemName: showTopProcesses ? "list.bullet.rectangle.portrait.fill" : "list.bullet.rectangle.portrait")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(showTopProcesses ? "Hide Top Processes" : "Show Top Processes")
+                
                 Spacer()
                 
                 Button(action: {
