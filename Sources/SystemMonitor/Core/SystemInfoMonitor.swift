@@ -92,11 +92,33 @@ class SystemInfoMonitor: ObservableObject {
         guard result == KERN_SUCCESS else { return 0 }
         
         let pageSize = getPageSize()
-        // Activity Monitor "Memory Used" ≈ Total - Free - Inactive - Speculative - Purgeable
-        // Alternative: App Memory + Wired + Compressed
-        // Using: Total - (free + inactive + speculative + purgeable_external)
-        let freePages = Int64(info.free_count + info.inactive_count + info.speculative_count + info.purgeable_count)
-        let used = memoryTotal - (freePages * pageSize)
+        
+        // Activity Monitor "Memory Used" = App Memory + Wired + Compressed
+        // App Memory ≈ active + internal (which is roughly total - free - inactive - speculative - purgeable - wired - compressed)
+        // We use: Active + Wired + Compressed + (Wire + internal overhead)
+        // Simpler: Total - Free - Inactive - Speculative - File-backed purgeable
+        // Best approximation: (total pages - free - inactive - speculative - external) * pageSize
+        // But Activity Monitor calculates: wired + app memory + compressed
+        
+        // Matching Activity Monitor more closely:
+        // App Memory = internal pages (not directly available, but ≈ active - external)
+        // Wired = wire_count
+        // Compressed = compressor_page_count
+        let wired = Int64(info.wire_count) * pageSize
+        let compressed = Int64(info.compressor_page_count) * pageSize
+        let active = Int64(info.active_count) * pageSize
+        
+        // App Memory ≈ internal_page_count (system internal) + active external handling
+        // For simplicity: wired + compressed + (active pages that aren't file-cached)
+        // Most accurate: use internal_page_count if available
+        let internalPages = Int64(info.internal_page_count) * pageSize
+        
+        // Memory Used = App Memory + Wired + Compressed
+        // App Memory ≈ internal - purgeable
+        let purgeable = Int64(info.purgeable_count) * pageSize
+        let appMemory = internalPages - purgeable
+        
+        let used = appMemory + wired + compressed
         return max(0, used)
     }
     

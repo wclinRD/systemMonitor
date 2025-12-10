@@ -4,8 +4,9 @@ import Combine
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var statusItem: NSStatusItem!
-    var popover: NSPopover!
+    var panelWindow: NSPanel?
     var settingsWindow: NSWindow?
+    var eventMonitor: Any?  // For click-outside-to-close
     
     var networkMonitor = NetworkMonitor()
     var processMonitor = ProcessMonitor()
@@ -18,18 +19,37 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Create status item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
-        // Create popover
-        popover = NSPopover()
-        popover.behavior = .transient
-        popover.contentSize = NSSize(width: 340, height: 400) // Default, but view will override
-        
+        // Create panel window (no triangle)
         let contentView = MenuBarView(
             networkMonitor: networkMonitor,
             processMonitor: processMonitor,
             systemInfo: systemInfo,
             temperatureMonitor: temperatureMonitor
         )
-        popover.contentViewController = NSHostingController(rootView: contentView)
+        
+        let hostingView = NSHostingView(rootView: contentView)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 420, height: 550)
+        
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 550),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.contentView = hostingView
+        panel.isFloatingPanel = true
+        panel.level = .statusBar
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.delegate = self
+        
+        // Round corners
+        panel.contentView?.wantsLayer = true
+        panel.contentView?.layer?.cornerRadius = 16
+        panel.contentView?.layer?.masksToBounds = true
+        
+        panelWindow = panel
         
         // Setup button
         if let button = statusItem.button {
@@ -147,20 +167,55 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     @objc func togglePopover() {
-        if let button = statusItem.button {
-            if popover.isShown {
-                popover.performClose(nil)
-            } else {
-                popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-                // Activate the app so the popover can receive input
-                NSApp.activate(ignoringOtherApps: true)
+        guard let panel = panelWindow, let button = statusItem.button else { return }
+        
+        if panel.isVisible {
+            closePanel()
+        } else {
+            // Position panel below status bar button, centered
+            guard let buttonFrame = button.window?.convertToScreen(button.convert(button.bounds, to: nil)) else { return }
+            
+            let panelWidth = panel.frame.width
+            let panelHeight = panel.frame.height
+            
+            // Center the panel under the button
+            let x = buttonFrame.midX - panelWidth / 2
+            let y = buttonFrame.minY - panelHeight - 5 // 5pt gap below menu bar
+            
+            panel.setFrameOrigin(NSPoint(x: x, y: y))
+            panel.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            
+            // Start monitoring for clicks outside
+            startEventMonitor()
+        }
+    }
+    
+    func closePanel() {
+        panelWindow?.orderOut(nil)
+        stopEventMonitor()
+    }
+    
+    func startEventMonitor() {
+        // Monitor both left and right mouse clicks
+        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            // If click is outside the panel, close it
+            if let panel = self?.panelWindow, panel.isVisible {
+                self?.closePanel()
             }
         }
     }
     
+    func stopEventMonitor() {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+    }
+    
     func openSettings() {
-        // Close popover first
-        popover.performClose(nil)
+        // Close panel first
+        closePanel()
         
         // Show Dock icon
         NSApp.setActivationPolicy(.regular)

@@ -132,6 +132,8 @@ struct MenuBarView: View {
             
             // Footer
             HStack {
+                Spacer()
+                
                 Button(action: {
                     NSApplication.shared.terminate(nil)
                 }) {
@@ -140,8 +142,6 @@ struct MenuBarView: View {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
-                
-                Spacer()
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
@@ -170,33 +170,49 @@ struct ProcessRow: View {
     var downloadColor: Color = .blue
     
     var body: some View {
-        HStack {
+        HStack(spacing: 8) {
             if listStyle.contains("Icon") {
                 AppIconView(pid: process.id)
+                    .frame(width: 20, height: 20)
             }
             
             if listStyle.contains("Name") {
-                Text(process.name)
-                    .lineLimit(1)
-                    .foregroundColor(.primary)
-                    .layoutPriority(1)
+                AppNameView(pid: process.id, fallbackName: process.name)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            
-            Spacer()
             
             // Show speed based on mode with user's color settings
             if mode == .upload {
                 Text("↑\(SpeedFormatter.format(process.uploadSpeed))")
                     .foregroundColor(uploadColor)
                     .font(.caption)
+                    .fixedSize()
             } else {
                 Text("↓\(SpeedFormatter.format(process.downloadSpeed))")
                     .foregroundColor(downloadColor)
                     .font(.caption)
+                    .fixedSize()
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
+    }
+}
+
+struct AppNameView: View {
+    let pid: Int
+    let fallbackName: String
+    @State private var displayName: String = ""
+    
+    var body: some View {
+        Text(displayName.isEmpty ? fallbackName : displayName)
+            .lineLimit(1)
+            .foregroundColor(.primary)
+            .onAppear {
+                if let app = NSRunningApplication(processIdentifier: pid_t(pid)) {
+                    displayName = app.localizedName ?? fallbackName
+                }
+            }
     }
 }
 
